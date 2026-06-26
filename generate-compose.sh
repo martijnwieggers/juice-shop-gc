@@ -13,8 +13,10 @@ if ! [[ "$NUM_SITES" =~ ^[1-9][0-9]*$ ]]; then
     exit 1
 fi
 
-read -rp "NPM Docker-netwerk (standaard: portainer_default): " NPM_NETWORK
-NPM_NETWORK="${NPM_NETWORK:-portainer_default}"
+NPM_NETWORK_DEFAULT=$(docker inspect npm --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null || true)
+NPM_NETWORK_DEFAULT="${NPM_NETWORK_DEFAULT:-portainer_default}"
+read -rp "NPM Docker-netwerk (standaard: ${NPM_NETWORK_DEFAULT}): " NPM_NETWORK
+NPM_NETWORK="${NPM_NETWORK:-${NPM_NETWORK_DEFAULT}}"
 
 declare -a INITIALS_LIST
 for ((i = 1; i <= NUM_SITES; i++)); do
