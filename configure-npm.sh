@@ -103,13 +103,12 @@ npm_find_cert() {
 }
 
 npm_create_cert() {
-    local token="$1" domain="$2" email="$3"
+    local token="$1" domain="$2"
     local response id
     response=$(npm_api POST "$token" "/nginx/certificates" "{
         \"provider\": \"letsencrypt\",
         \"domain_names\": [\"${domain}\"],
         \"meta\": {
-            \"letsencrypt_email\": \"${email}\",
             \"letsencrypt_agree\": true
         }
     }")
@@ -162,7 +161,6 @@ echo ""
 read -rp "NPM e-mailadres: " NPM_EMAIL
 read -rsp "NPM wachtwoord: " NPM_PASSWORD
 echo ""
-read -rp "Let's Encrypt e-mailadres: " LE_EMAIL
 
 # ── Verbinden ─────────────────────────────────────────────────────────────────
 
@@ -204,7 +202,7 @@ while IFS=',' read -r domain container network; do
         echo "bestaat al (id: ${CERT_ID})"
     else
         printf "aanvragen (dit kan even duren)...\n"
-        CERT_ID=$(npm_create_cert "$TOKEN" "$domain" "$LE_EMAIL")
+        CERT_ID=$(npm_create_cert "$TOKEN" "$domain")
         if [[ -z "$CERT_ID" ]]; then
             printf "[%s] Certificaat... MISLUKT\n" "$domain"
             ERRORS=$((ERRORS + 1))
