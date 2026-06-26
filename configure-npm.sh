@@ -18,95 +18,138 @@ if [[ ! -f "$CSV" ]]; then
     exit 1
 fi
 
+# ── NPM API-helper ────────────────────────────────────────────────────────────
+# Voert een curl-request uit en geeft de volledige response terug.
+# Bij HTTP-fout (4xx/5xx) wordt de foutmelding naar stderr geschreven.
+
+npm_api() {
+    local method="$1" token="$2" path="$3" body="${4:-}"
+    local args=(-s -w "\n%{http_code}" -X "$method" "${NPM_URL}${path}"
+                -H "Authorization: Bearer ${token}")
+
+    [[ -n "$body" ]] && args+=(-H "Content-Type: application/json" -d "$body")
+
+    local raw http_code response
+    raw=$(curl "${args[@]}")
+    http_code=$(printf '%s' "$raw" | tail -1)
+    response=$(printf '%s' "$raw" | head -n -1)
+
+    if [[ ! "$http_code" =~ ^2 ]]; then
+        local msg
+        msg=$(printf '%s' "$response" | jq -r '.error.message // .message // .' 2>/dev/null || printf '%s' "$response")
+        printf '  [HTTP %s] %s\n' "$http_code" "$msg" >&2
+    fi
+
+    printf '%s' "$response"
+}
+
 # ── NPM API-functies ──────────────────────────────────────────────────────────
 
 npm_token() {
-    curl -s -X POST "${NPM_URL}/tokens" \
+    local response id
+    response=$(curl -s -w "\n%{http_code}" -X POST "${NPM_URL}/tokens" \
         -H "Content-Type: application/json" \
-        -d "{\"identity\":\"${1}\",\"secret\":\"${2}\"}" \
-        | jq -r '.token // empty'
+        -d "{\"identity\":\"${1}\",\"secret\":\"${2}\"}")
+    local http_code body
+    http_code=$(printf '%s' "$response" | tail -1)
+    body=$(printf '%s' "$response" | head -n -1)
+    if [[ ! "$http_code" =~ ^2 ]]; then
+        printf '  [HTTP %s] %s\n' "$http_code" \
+            "$(printf '%s' "$body" | jq -r '.error.message // .message // .' 2>/dev/null || printf '%s' "$body")" >&2
+    fi
+    printf '%s' "$body" | jq -r '.token // empty'
 }
 
 npm_find_proxy() {
     local token="$1" domain="$2"
-    curl -s "${NPM_URL}/nginx/proxy-hosts" \
-        -H "Authorization: Bearer ${token}" \
-        | jq -r ".[] | select(.domain_names[] == \"${domain}\") | .id" | head -1
+    npm_api GET "$token" "/nginx/proxy-hosts" \
+        | jq -r ".[] | select(.domain_names[] == \"${domain}\") | .id" 2>/dev/null | head -1 || true
 }
 
 npm_create_proxy() {
     local token="$1" domain="$2" container="$3"
-    curl -s -X POST "${NPM_URL}/nginx/proxy-hosts" \
-        -H "Authorization: Bearer ${token}" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"domain_names\": [\"${domain}\"],
-            \"forward_scheme\": \"http\",
-            \"forward_host\": \"${container}\",
-            \"forward_port\": 3000,
-            \"access_list_id\": 0,
-            \"certificate_id\": 0,
-            \"ssl_forced\": false,
-            \"caching_enabled\": false,
-            \"block_exploits\": true,
-            \"allow_websocket_upgrade\": true,
-            \"http2_support\": false,
-            \"hsts_enabled\": false,
-            \"hsts_subdomains\": false,
-            \"enabled\": true,
-            \"advanced_config\": \"\",
-            \"locations\": [],
-            \"meta\": {}
-        }" | jq -r '.id // empty'
+    local response id
+    response=$(npm_api POST "$token" "/nginx/proxy-hosts" "{
+        \"domain_names\": [\"${domain}\"],
+        \"forward_scheme\": \"http\",
+        \"forward_host\": \"${container}\",
+        \"forward_port\": 3000,
+        \"access_list_id\": 0,
+        \"certificate_id\": 0,
+        \"ssl_forced\": false,
+        \"caching_enabled\": false,
+        \"block_exploits\": true,
+        \"allow_websocket_upgrade\": true,
+        \"http2_support\": false,
+        \"hsts_enabled\": false,
+        \"hsts_subdomains\": false,
+        \"enabled\": true,
+        \"advanced_config\": \"\",
+        \"locations\": [],
+        \"meta\": {}
+    }")
+    id=$(printf '%s' "$response" | jq -r '.id // empty' 2>/dev/null || true)
+    if [[ -z "$id" ]]; then
+        printf '  NPM: %s\n' \
+            "$(printf '%s' "$response" | jq -r '.error.message // .message // .' 2>/dev/null || printf '%s' "$response")" >&2
+    fi
+    printf '%s' "$id"
 }
 
 npm_find_cert() {
     local token="$1" domain="$2"
-    curl -s "${NPM_URL}/nginx/certificates" \
-        -H "Authorization: Bearer ${token}" \
-        | jq -r ".[] | select(.domain_names[] == \"${domain}\") | .id" | head -1
+    npm_api GET "$token" "/nginx/certificates" \
+        | jq -r ".[] | select(.domain_names[] == \"${domain}\") | .id" 2>/dev/null | head -1 || true
 }
 
 npm_create_cert() {
     local token="$1" domain="$2" email="$3"
-    curl -s -X POST "${NPM_URL}/nginx/certificates" \
-        -H "Authorization: Bearer ${token}" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"provider\": \"letsencrypt\",
-            \"domain_names\": [\"${domain}\"],
-            \"meta\": {
-                \"letsencrypt_email\": \"${email}\",
-                \"letsencrypt_agree\": true,
-                \"dns_challenge\": false
-            }
-        }" | jq -r '.id // empty'
+    local response id
+    response=$(npm_api POST "$token" "/nginx/certificates" "{
+        \"provider\": \"letsencrypt\",
+        \"domain_names\": [\"${domain}\"],
+        \"meta\": {
+            \"letsencrypt_email\": \"${email}\",
+            \"letsencrypt_agree\": true,
+            \"dns_challenge\": false
+        }
+    }")
+    id=$(printf '%s' "$response" | jq -r '.id // empty' 2>/dev/null || true)
+    if [[ -z "$id" ]]; then
+        printf '  NPM: %s\n' \
+            "$(printf '%s' "$response" | jq -r '.error.message // .message // .' 2>/dev/null || printf '%s' "$response")" >&2
+    fi
+    printf '%s' "$id"
 }
 
 npm_enable_ssl() {
     local token="$1" proxy_id="$2" cert_id="$3" domain="$4" container="$5"
-    curl -s -X PUT "${NPM_URL}/nginx/proxy-hosts/${proxy_id}" \
-        -H "Authorization: Bearer ${token}" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"domain_names\": [\"${domain}\"],
-            \"forward_scheme\": \"http\",
-            \"forward_host\": \"${container}\",
-            \"forward_port\": 3000,
-            \"access_list_id\": 0,
-            \"certificate_id\": ${cert_id},
-            \"ssl_forced\": true,
-            \"caching_enabled\": false,
-            \"block_exploits\": true,
-            \"allow_websocket_upgrade\": true,
-            \"http2_support\": false,
-            \"hsts_enabled\": false,
-            \"hsts_subdomains\": false,
-            \"enabled\": true,
-            \"advanced_config\": \"\",
-            \"locations\": [],
-            \"meta\": {}
-        }" | jq -r '.id // empty'
+    local response id
+    response=$(npm_api PUT "$token" "/nginx/proxy-hosts/${proxy_id}" "{
+        \"domain_names\": [\"${domain}\"],
+        \"forward_scheme\": \"http\",
+        \"forward_host\": \"${container}\",
+        \"forward_port\": 3000,
+        \"access_list_id\": 0,
+        \"certificate_id\": ${cert_id},
+        \"ssl_forced\": true,
+        \"caching_enabled\": false,
+        \"block_exploits\": true,
+        \"allow_websocket_upgrade\": true,
+        \"http2_support\": false,
+        \"hsts_enabled\": false,
+        \"hsts_subdomains\": false,
+        \"enabled\": true,
+        \"advanced_config\": \"\",
+        \"locations\": [],
+        \"meta\": {}
+    }")
+    id=$(printf '%s' "$response" | jq -r '.id // empty' 2>/dev/null || true)
+    if [[ -z "$id" ]]; then
+        printf '  NPM: %s\n' \
+            "$(printf '%s' "$response" | jq -r '.error.message // .message // .' 2>/dev/null || printf '%s' "$response")" >&2
+    fi
+    printf '%s' "$id"
 }
 
 # ── Invoer ────────────────────────────────────────────────────────────────────
@@ -161,14 +204,14 @@ while IFS=',' read -r domain container network; do
     if [[ -n "$CERT_ID" ]]; then
         echo "bestaat al (id: ${CERT_ID})"
     else
-        printf "aanvragen..."
+        printf "aanvragen (dit kan even duren)...\n"
         CERT_ID=$(npm_create_cert "$TOKEN" "$domain" "$LE_EMAIL")
         if [[ -z "$CERT_ID" ]]; then
-            echo " MISLUKT (DNS al actief voor ${domain}?)"
+            printf "[%s] Certificaat... MISLUKT\n" "$domain"
             ERRORS=$((ERRORS + 1))
             continue
         fi
-        echo " OK (id: ${CERT_ID})"
+        printf "[%s] Certificaat... OK (id: %s)\n" "$domain" "$CERT_ID"
     fi
 
     # SSL koppelen aan proxy host
