@@ -1,0 +1,37 @@
+services:
+  juice-shop:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: juice-shop-gc
+    ports:
+      - "3000:3000"
+    environment:
+      # Laadt config/graafschap-college.yml bovenop config/default.yml
+      - NODE_ENV=graafschap-college
+
+      # Serverpoort (moet overeenkomen met de poort in de ports-mapping hierboven)
+      - PORT=3000
+
+      # Pad als de app achter een reverse proxy draait met een subpad, bijv. /juice-shop
+      - BASE_PATH=
+
+      # Continue code isolatie: voorkomt dat scores tussen omgevingen worden uitgewisseld
+      - CONTINUE_CODE_SALT=changeme
+      - CONTINUE_CODE_SALT_FINDIT=changeme_findit
+      - CONTINUE_CODE_SALT_FIXIT=changeme_fixit
+
+      # CTF-modus: vul in om vlaggen in notificaties te tonen (zie ook config: ctf.showFlagsInNotifications)
+      - CTF_KEY=
+
+      # Webhook: ontvangt een POST bij elke opgeloste challenge
+      - SOLUTIONS_WEBHOOK=
+
+      # Web3/blockchain challenges (vereist voor NFT mint & wallet challenges)
+      - ALCHEMY_API_KEY=
+
+      # Externe LLM API-sleutel voor chatbot challenges (niet nodig bij gebruik van Ollama)
+      - LLM_API_KEY=
+
+      # Zet op 'true' voor startup-benchmarking (app sluit af zodra hij klaar is)
+      - EXIT_ON_READY=
