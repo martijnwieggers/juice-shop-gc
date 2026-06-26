@@ -6,6 +6,7 @@
 import Hashids from 'hashids/cjs'
 import { type Request, type Response } from 'express'
 
+import logger from '../lib/logger'
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 
@@ -15,11 +16,13 @@ const invalidContinueCode = 'Invalid continue code.'
 
 export function restoreProgress () {
   return ({ params }: Request, res: Response) => {
-    const hashids = new Hashids(process.env.CONTINUE_CODE_SALT ?? 'this is my salt', 60, hashidsAlphabet)
+    const salt = process.env.CONTINUE_CODE_SALT ?? 'this is my salt'
+    const hashids = new Hashids(salt, 60, hashidsAlphabet)
     const continueCode = params.continueCode
     if (!hashidRegexp.test(continueCode)) {
       return res.status(404).send(invalidContinueCode)
     }
+    logger.info(`Continue code import (standard) using salt: "${salt}"`)
     const ids = hashids.decode(continueCode)
     if (challengeUtils.notSolved(challenges.continueCodeChallenge) && ids.includes(999)) {
       challengeUtils.solve(challenges.continueCodeChallenge)
@@ -39,11 +42,13 @@ export function restoreProgress () {
 
 export function restoreProgressFindIt () {
   return async ({ params }: Request, res: Response) => {
-    const hashids = new Hashids(process.env.CONTINUE_CODE_SALT_FINDIT ?? 'this is the salt for findIt challenges', 60, hashidsAlphabet)
+    const salt = process.env.CONTINUE_CODE_SALT_FINDIT ?? 'this is the salt for findIt challenges'
+    const hashids = new Hashids(salt, 60, hashidsAlphabet)
     const continueCodeFindIt = params.continueCode
     if (!hashidRegexp.test(continueCodeFindIt)) {
       return res.status(404).send(invalidContinueCode)
     }
+    logger.info(`Continue code import (findIt) using salt: "${salt}"`)
     const idsFindIt = hashids.decode(continueCodeFindIt)
     if (idsFindIt.length > 0) {
       for (const challenge of Object.values(challenges)) {
@@ -59,12 +64,14 @@ export function restoreProgressFindIt () {
 }
 
 export function restoreProgressFixIt () {
-  const hashids = new Hashids(process.env.CONTINUE_CODE_SALT_FIXIT ?? 'yet another salt for the fixIt challenges', 60, hashidsAlphabet)
+  const salt = process.env.CONTINUE_CODE_SALT_FIXIT ?? 'yet another salt for the fixIt challenges'
+  const hashids = new Hashids(salt, 60, hashidsAlphabet)
   return async ({ params }: Request, res: Response) => {
     const continueCodeFixIt = params.continueCode
     if (!hashidRegexp.test(continueCodeFixIt)) {
       return res.status(404).send(invalidContinueCode)
     }
+    logger.info(`Continue code import (fixIt) using salt: "${salt}"`)
     const idsFixIt = hashids.decode(continueCodeFixIt)
     if (idsFixIt.length > 0) {
       for (const challenge of Object.values(challenges)) {
