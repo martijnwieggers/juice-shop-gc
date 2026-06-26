@@ -110,8 +110,7 @@ npm_create_cert() {
         \"domain_names\": [\"${domain}\"],
         \"meta\": {
             \"letsencrypt_email\": \"${email}\",
-            \"letsencrypt_agree\": true,
-            \"dns_challenge\": false
+            \"letsencrypt_agree\": true
         }
     }")
     id=$(printf '%s' "$response" | jq -r '.id // empty' 2>/dev/null || true)
