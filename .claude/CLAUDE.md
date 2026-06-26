@@ -137,21 +137,34 @@ docker compose up -d
 
 ### Multi-site classroom deployment
 
-`generate-compose.sh` — interactive script that generates `docker-compose-gc.yml` with one container per student group and optionally configures Nginx Proxy Manager automatically via its REST API.
+Two-script workflow — split so containers can start and DNS can propagate before SSL is requested:
+
+1. `generate-compose.sh` — generates `docker-compose-gc.yml` + `sites.csv` (no API calls)
+2. `configure-npm.sh` — reads `sites.csv`, configures NPM proxy hosts + Let's Encrypt SSL
 
 ```bash
-# vereist: jq (apt install jq)
-bash generate-compose.sh
-docker compose -f docker-compose-gc.yml up -d
+# vereist: jq (apt install jq), openssl
+bash generate-compose.sh                          # stap 1: genereer bestanden
+docker compose -f docker-compose-gc.yml up -d    # stap 2: start containers
+# (DNS-records instellen)
+bash configure-npm.sh                            # stap 3: configureer NPM + SSL
 ```
 
-The script:
+`generate-compose.sh`:
 - Detects NPM's Docker network automatically (`docker inspect npm`)
 - Generates cryptographically random salts per site (`openssl rand -hex 20`)
 - Sets `container_name` per site for predictable NPM DNS resolution
-- Optionally creates proxy hosts + Let's Encrypt certificates via `http://127.0.0.1:81/api`
+- Writes `sites.csv` with columns `domain,container,network`
 
-Each site is reachable as `js-<initialen>.wieggers.eu` via NPM on the shared `portainer_default` network. No host port mappings are used — NPM proxies directly to containers on port 3000.
+`configure-npm.sh`:
+- Reads `sites.csv`; asks NPM credentials + LE email once
+- Per row: creates proxy host → requests LE cert → enables SSL
+- Idempotent: skips sites where proxy host or cert already exists
+- NPM API base: `http://127.0.0.1:81/api`
+
+Each site is reachable as `js-<initialen>.wieggers.eu` via NPM on the shared `portainer_default` network. No host port mappings — NPM proxies directly to containers on port 3000.
+
+`docker-compose-gc.yml` and `sites.csv` are git-ignored (generated artifacts).
 
 ### Database behaviour
 

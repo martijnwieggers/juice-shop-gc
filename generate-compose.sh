@@ -1,87 +1,11 @@
 #!/usr/bin/env bash
-# Genereert docker-compose-gc.yml met een juice-shop-gc container per site.
-# Kan optioneel Nginx Proxy Manager automatisch configureren via de API.
+# Stap 1: Genereert docker-compose-gc.yml en sites.csv.
+# Daarna: docker compose -f docker-compose-gc.yml up -d
+# DNS-records instellen en dan: bash configure-npm.sh
 set -euo pipefail
 
 OUTPUT="docker-compose-gc.yml"
-NPM_URL="http://127.0.0.1:81/api"
-
-# ── NPM API-functies ──────────────────────────────────────────────────────────
-
-npm_token() {
-    curl -s -X POST "${NPM_URL}/tokens" \
-        -H "Content-Type: application/json" \
-        -d "{\"identity\":\"${1}\",\"secret\":\"${2}\"}" \
-        | jq -r '.token // empty'
-}
-
-npm_create_proxy() {
-    local token="$1" domain="$2" container="$3"
-    curl -s -X POST "${NPM_URL}/nginx/proxy-hosts" \
-        -H "Authorization: Bearer ${token}" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"domain_names\": [\"${domain}\"],
-            \"forward_scheme\": \"http\",
-            \"forward_host\": \"${container}\",
-            \"forward_port\": 3000,
-            \"access_list_id\": 0,
-            \"certificate_id\": 0,
-            \"ssl_forced\": false,
-            \"caching_enabled\": false,
-            \"block_exploits\": true,
-            \"allow_websocket_upgrade\": true,
-            \"http2_support\": false,
-            \"hsts_enabled\": false,
-            \"hsts_subdomains\": false,
-            \"enabled\": true,
-            \"advanced_config\": \"\",
-            \"locations\": [],
-            \"meta\": {}
-        }" | jq -r '.id // empty'
-}
-
-npm_create_cert() {
-    local token="$1" domain="$2" email="$3"
-    curl -s -X POST "${NPM_URL}/nginx/certificates" \
-        -H "Authorization: Bearer ${token}" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"provider\": \"letsencrypt\",
-            \"domain_names\": [\"${domain}\"],
-            \"meta\": {
-                \"letsencrypt_email\": \"${email}\",
-                \"letsencrypt_agree\": true,
-                \"dns_challenge\": false
-            }
-        }" | jq -r '.id // empty'
-}
-
-npm_enable_ssl() {
-    local token="$1" proxy_id="$2" cert_id="$3" domain="$4" container="$5"
-    curl -s -X PUT "${NPM_URL}/nginx/proxy-hosts/${proxy_id}" \
-        -H "Authorization: Bearer ${token}" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"domain_names\": [\"${domain}\"],
-            \"forward_scheme\": \"http\",
-            \"forward_host\": \"${container}\",
-            \"forward_port\": 3000,
-            \"access_list_id\": 0,
-            \"certificate_id\": ${cert_id},
-            \"ssl_forced\": true,
-            \"caching_enabled\": false,
-            \"block_exploits\": true,
-            \"allow_websocket_upgrade\": true,
-            \"http2_support\": false,
-            \"hsts_enabled\": false,
-            \"hsts_subdomains\": false,
-            \"enabled\": true,
-            \"advanced_config\": \"\",
-            \"locations\": [],
-            \"meta\": {}
-        }" | jq -r '.id // empty'
-}
+CSV="sites.csv"
 
 # ── Invoer ────────────────────────────────────────────────────────────────────
 
@@ -105,19 +29,6 @@ for ((i = 1; i <= NUM_SITES; i++)); do
     fi
     INITIALS_LIST+=("${initials,,}")
 done
-
-echo ""
-read -rp "NPM automatisch configureren via API? [j/n]: " CONFIGURE_NPM
-if [[ "${CONFIGURE_NPM,,}" == "j" ]]; then
-    if ! command -v jq &>/dev/null; then
-        echo "Fout: jq is vereist. Installeer met: apt install jq" >&2
-        exit 1
-    fi
-    read -rp "NPM e-mailadres: " NPM_EMAIL
-    read -rsp "NPM wachtwoord: " NPM_PASSWORD
-    echo ""
-    read -rp "Let's Encrypt e-mailadres: " LE_EMAIL
-fi
 
 # ── Genereer docker-compose-gc.yml ────────────────────────────────────────────
 
@@ -153,64 +64,28 @@ fi
 
 } > "$OUTPUT"
 
-echo "Gegenereerd: $OUTPUT"
+# ── Genereer sites.csv ────────────────────────────────────────────────────────
 
-# ── NPM configureren via API ──────────────────────────────────────────────────
-
-if [[ "${CONFIGURE_NPM,,}" == "j" ]]; then
-    echo ""
-    printf "Verbinden met NPM... "
-    TOKEN=$(npm_token "$NPM_EMAIL" "$NPM_PASSWORD")
-    if [[ -z "$TOKEN" ]]; then
-        echo "MISLUKT"
-        echo "Fout: kon geen token ophalen. Controleer e-mailadres en wachtwoord." >&2
-        exit 1
-    fi
-    echo "OK"
-
+{
+    printf 'domain,container,network\n'
     for initials in "${INITIALS_LIST[@]}"; do
-        domain="js-${initials}.wieggers.eu"
-        container="juice-shop-${initials}"
-
-        printf "\n[%s] Proxy host aanmaken..." "$initials"
-        PROXY_ID=$(npm_create_proxy "$TOKEN" "$domain" "$container")
-        if [[ -z "$PROXY_ID" ]]; then
-            echo " MISLUKT (bestaat mogelijk al voor ${domain})"
-            continue
-        fi
-        echo " OK (id: ${PROXY_ID})"
-
-        printf "[%s] Let's Encrypt certificaat aanvragen (kan even duren)..." "$initials"
-        CERT_ID=$(npm_create_cert "$TOKEN" "$domain" "$LE_EMAIL")
-        if [[ -z "$CERT_ID" ]]; then
-            echo " MISLUKT (DNS nog niet actief voor ${domain}?)"
-            continue
-        fi
-        echo " OK (id: ${CERT_ID})"
-
-        printf "[%s] SSL koppelen aan proxy host..." "$initials"
-        RESULT=$(npm_enable_ssl "$TOKEN" "$PROXY_ID" "$CERT_ID" "$domain" "$container")
-        if [[ -z "$RESULT" ]]; then
-            echo " MISLUKT"
-        else
-            echo " OK"
-        fi
+        printf 'js-%s.wieggers.eu,juice-shop-%s,%s\n' "$initials" "$initials" "$NPM_NETWORK"
     done
-fi
+} > "$CSV"
 
 # ── Samenvatting ──────────────────────────────────────────────────────────────
 
 echo ""
-printf "%-10s  %-32s  %-28s  %s\n" "Site" "Subdomein" "NPM Hostname" "Port"
-printf "%-10s  %-32s  %-28s  %s\n" "----------" "--------------------------------" "----------------------------" "----"
-for initials in "${INITIALS_LIST[@]}"; do
-    printf "%-10s  %-32s  %-28s  %s\n" \
-        "$initials" \
-        "js-${initials}.wieggers.eu" \
-        "juice-shop-${initials}" \
-        "3000"
-done
-
+echo "Gegenereerd: $OUTPUT"
+echo "Gegenereerd: $CSV"
 echo ""
-echo "Containers starten:"
-echo "  docker compose -f $OUTPUT up -d"
+printf "%-10s  %-32s  %s\n" "Site" "Subdomein" "Container"
+printf "%-10s  %-32s  %s\n" "----------" "--------------------------------" "----------------------------"
+for initials in "${INITIALS_LIST[@]}"; do
+    printf "%-10s  %-32s  %s\n" "$initials" "js-${initials}.wieggers.eu" "juice-shop-${initials}"
+done
+echo ""
+echo "Volgende stappen:"
+echo "  1. Stel DNS-records in voor bovenstaande subdomeinen"
+echo "  2. docker compose -f $OUTPUT up -d"
+echo "  3. bash configure-npm.sh"
