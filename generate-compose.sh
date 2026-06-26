@@ -13,12 +13,8 @@ if ! [[ "$NUM_SITES" =~ ^[1-9][0-9]*$ ]]; then
     exit 1
 fi
 
-read -rp "Eerste poort (standaard: 3001): " START_PORT
-START_PORT="${START_PORT:-3001}"
-if ! [[ "$START_PORT" =~ ^[0-9]+$ ]]; then
-    echo "Fout: voer een geldige poort in." >&2
-    exit 1
-fi
+read -rp "NPM Docker-netwerk (standaard: portainer_default): " NPM_NETWORK
+NPM_NETWORK="${NPM_NETWORK:-portainer_default}"
 
 declare -a INITIALS_LIST
 for ((i = 1; i <= NUM_SITES; i++)); do
@@ -35,30 +31,33 @@ done
 {
     printf 'services:\n'
 
-    port=$START_PORT
     for initials in "${INITIALS_LIST[@]}"; do
         service="juice-shop-${initials}"
         salt=$(openssl rand -hex 20)
         salt_findit=$(openssl rand -hex 20)
         salt_fixit=$(openssl rand -hex 20)
 
-        printf '  %s:\n'                              "$service"
+        printf '  %s:\n'                                 "$service"
         printf '    build:\n'
         printf '      context: .\n'
         printf '      dockerfile: Dockerfile\n'
         printf '    image: juice-shop-gc\n'
+        printf '    container_name: %s\n'                "$service"
         printf '    restart: unless-stopped\n'
-        printf '    ports:\n'
-        printf '      - "%s:3000"\n'                  "$port"
         printf '    environment:\n'
         printf '      - NODE_ENV=graafschap-college\n'
-        printf '      - CONTINUE_CODE_SALT=%s\n'      "$salt"
-        printf '      - CONTINUE_CODE_SALT_FINDIT=%s\n' "$salt_findit"
-        printf '      - CONTINUE_CODE_SALT_FIXIT=%s\n'  "$salt_fixit"
+        printf '      - CONTINUE_CODE_SALT=%s\n'         "$salt"
+        printf '      - CONTINUE_CODE_SALT_FINDIT=%s\n'  "$salt_findit"
+        printf '      - CONTINUE_CODE_SALT_FIXIT=%s\n'   "$salt_fixit"
+        printf '    networks:\n'
+        printf '      - %s\n'                            "$NPM_NETWORK"
         printf '\n'
-
-        ((port++))
     done
+
+    # Netwerk als extern declareren (NPM beheert het)
+    printf 'networks:\n'
+    printf '  %s:\n'        "$NPM_NETWORK"
+    printf '    external: true\n'
 
 } > "$OUTPUT"
 
@@ -67,22 +66,21 @@ done
 echo ""
 echo "Gegenereerd: $OUTPUT"
 echo ""
-printf "%-6s  %-30s  %-10s  %s\n" "Site" "Subdomein" "Poort" "NPM: Forward Hostname/IP → Port"
-printf "%-6s  %-30s  %-10s  %s\n" "------" "------------------------------" "----------" "--------------------------------"
+printf "%-10s  %-30s  %-30s  %s\n" "Site" "Subdomein" "NPM Hostname" "NPM Port"
+printf "%-10s  %-30s  %-30s  %s\n" "----------" "------------------------------" "------------------------------" "---------"
 
-port=$START_PORT
 for initials in "${INITIALS_LIST[@]}"; do
     subdomain="js-${initials}.wieggers.eu"
-    printf "%-6s  %-30s  %-10s  localhost → %s\n" "$initials" "$subdomain" "$port" "$port"
-    ((port++))
+    container="juice-shop-${initials}"
+    printf "%-10s  %-30s  %-30s  %s\n" "$initials" "$subdomain" "$container" "3000"
 done
 
 echo ""
 echo "Stappen in Nginx Proxy Manager per site:"
 echo "  1. Add Proxy Host"
 echo "  2. Domain Names:          js-<initialen>.wieggers.eu"
-echo "  3. Forward Hostname/IP:   localhost (of het server-IP)"
-echo "  4. Forward Port:          zie tabel hierboven"
+echo "  3. Forward Hostname/IP:   <containernaam uit tabel hierboven>"
+echo "  4. Forward Port:          3000"
 echo "  5. SSL tab → Request new certificate (Let's Encrypt)"
 echo ""
 echo "Containers starten:"
