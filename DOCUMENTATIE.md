@@ -129,6 +129,8 @@ nslookup js-<initialen>.wieggers.eu
 
 ### Stap 4 — NPM configureren en SSL aanvragen
 
+> **Vereiste:** Stel het Let's Encrypt e-mailadres in via NPM → SSL Certificates → Add SSL Certificate → Let's Encrypt (of via Settings als jouw NPM-versie dat heeft). Het script gebruikt de globale instelling; als dit niet is ingevuld, mislukt de certificaataanvraag.
+
 ```bash
 bash configure-npm.sh
 ```
@@ -139,7 +141,6 @@ Het script stelt de volgende vragen:
 |---|---|
 | NPM e-mailadres | Inloggegevens van de NPM-beheerdersaccount |
 | NPM wachtwoord | Inloggegevens van de NPM-beheerdersaccount |
-| Let's Encrypt e-mailadres | Wordt gebruikt voor het aanvragen van SSL-certificaten |
 
 Per site doet het script:
 
