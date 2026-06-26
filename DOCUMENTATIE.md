@@ -240,12 +240,6 @@ docker logs juice-shop-<initialen>
 docker compose -f docker-compose-gc.yml restart juice-shop-<initialen>
 ```
 
-### Alles stoppen en verwijderen
-
-```bash
-docker compose -f docker-compose-gc.yml down
-```
-
 ### Image opnieuw bouwen (na een update)
 
 ```bash
@@ -257,3 +251,30 @@ docker compose -f docker-compose-gc.yml up -d
 ### sites.csv opnieuw uitvoeren na DNS-wijzigingen
 
 `configure-npm.sh` is idempotent: al geconfigureerde proxy hosts en certificaten worden herkend en niet opnieuw aangemaakt. Je kunt het script veilig meerdere keren draaien.
+
+---
+
+## Opruimen
+
+### Containers stoppen en verwijderen
+
+```bash
+bash cleanup-containers.sh
+```
+
+Stopt alle containers uit `docker-compose-gc.yml` en verwijdert ze. De gebouwde image blijft bewaard. Vraagt om bevestiging.
+
+### NPM proxy hosts en certificaten verwijderen
+
+```bash
+bash cleanup-npm.sh
+```
+
+Verwijdert alle proxy hosts en Let's Encrypt-certificaten voor de domeinen in `sites.csv`. Vraagt om bevestiging.
+
+### Volledige opruiming (alles weg)
+
+```bash
+bash cleanup-containers.sh
+bash cleanup-npm.sh
+```
