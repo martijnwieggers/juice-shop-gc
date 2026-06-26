@@ -108,9 +108,7 @@ npm_create_cert() {
     response=$(npm_api POST "$token" "/nginx/certificates" "{
         \"provider\": \"letsencrypt\",
         \"domain_names\": [\"${domain}\"],
-        \"meta\": {
-            \"letsencrypt_agree\": true
-        }
+        \"meta\": {}
     }")
     id=$(printf '%s' "$response" | jq -r '.id // empty' 2>/dev/null || true)
     if [[ -z "$id" ]]; then
