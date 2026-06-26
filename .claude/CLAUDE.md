@@ -105,3 +105,54 @@ The **Refactoring Safety Net (RSN)** (`rsn/`) compares current source snippets t
 - NoSQL injection via MarsDB in `routes/showProductReviews.ts`
 
 Do not "fix" these — they are the point of the application.
+
+## Graafschap College Deployment
+
+This fork adds classroom deployment support on top of the standard Juice Shop.
+
+### Continue Code Isolation
+
+The Hashids salts used for score export/import are configurable via environment variables, preventing scores from being imported across environments:
+
+| Variable | Default (fallback) |
+|---|---|
+| `CONTINUE_CODE_SALT` | `'this is my salt'` |
+| `CONTINUE_CODE_SALT_FINDIT` | `'this is the salt for findIt challenges'` |
+| `CONTINUE_CODE_SALT_FIXIT` | `'yet another salt for the fixIt challenges'` |
+
+Every import and export logs which salt was used (`info` level via Winston).
+
+### Custom Config
+
+`config/graafschap-college.yml` is a full copy of `config/default.yml` for classroom-specific overrides. Load it with `NODE_ENV=graafschap-college`.
+
+### Single-container deployment
+
+`docker-compose.yml` — starts one `juice-shop-gc` container with all configurable env vars documented as comments. Build and start:
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+### Multi-site classroom deployment
+
+`generate-compose.sh` — interactive script that generates `docker-compose-gc.yml` with one container per student group and optionally configures Nginx Proxy Manager automatically via its REST API.
+
+```bash
+# vereist: jq (apt install jq)
+bash generate-compose.sh
+docker compose -f docker-compose-gc.yml up -d
+```
+
+The script:
+- Detects NPM's Docker network automatically (`docker inspect npm`)
+- Generates cryptographically random salts per site (`openssl rand -hex 20`)
+- Sets `container_name` per site for predictable NPM DNS resolution
+- Optionally creates proxy hosts + Let's Encrypt certificates via `http://127.0.0.1:81/api`
+
+Each site is reachable as `js-<initialen>.wieggers.eu` via NPM on the shared `portainer_default` network. No host port mappings are used — NPM proxies directly to containers on port 3000.
+
+### Database behaviour
+
+`server.ts:734` calls `sequelize.sync({ force: true })` on every startup — all tables are dropped and reseeded. This is intentional upstream behaviour. Challenge progress is lost on container restart unless a volume is mounted at `/juice-shop/data/`.
