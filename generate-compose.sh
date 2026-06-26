@@ -43,6 +43,9 @@ done
         salt_fixit=$(openssl rand -hex 20)
 
         printf '  %s:\n'                              "$service"
+        printf '    build:\n'
+        printf '      context: .\n'
+        printf '      dockerfile: Dockerfile\n'
         printf '    image: juice-shop-gc\n'
         printf '    restart: unless-stopped\n'
         printf '    ports:\n'
