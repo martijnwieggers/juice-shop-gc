@@ -308,7 +308,8 @@
 
     async function fetchCheatScore(base) {
       try {
-        const resp = await fetch(`${base}/metrics`, { signal: AbortSignal.timeout(8000) });
+        const hostname = new URL(base).hostname;
+        const resp = await fetch(`/metrics-proxy/${hostname}`, { signal: AbortSignal.timeout(8000) });
         if (!resp.ok) return null;
         const text = await resp.text();
         const match = text.match(/^\w+_cheat_score(?:\{[^}]*\})?\s+(\S+)/m);
