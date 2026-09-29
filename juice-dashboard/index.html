@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1920">
+  <title>Juice Shop Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #000;
+      color: #e0e0e0;
+    }
+
+    #bg {
+      position: fixed;
+      top: 0;
+      right: 0;
+      height: 100vh;
+      z-index: 0;
+    }
+
+    #bg img {
+      height: 100%;
+      width: auto;
+      display: block;
+    }
+
+    body {
+      display: flex;
+      flex-direction: row;
+    }
+
+    /* ── Linker paneel (1/3) ─────────────────────── */
+    #panel {
+      position: relative;
+      z-index: 1;
+      width: 33.333vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 2vh 2vw;
+      gap: 1.5vh;
+      background: rgba(10, 20, 45, 0.72);
+      backdrop-filter: blur(10px);
+    }
+
+    /* ── Header ──────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    h1 {
+      font-size: 2.4vh;
+      font-weight: 700;
+      color: #ff6b35;
+      letter-spacing: 0.02em;
+    }
+
+    #refresh-btn {
+      padding: 0.6vh 1.2vw;
+      background: #ff6b35;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1.4vh;
+      font-weight: 600;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    #refresh-btn:hover { background: #e55a24; }
+    #refresh-btn:disabled { background: #444; cursor: not-allowed; }
+
+    #last-updated {
+      font-size: 1.3vh;
+      color: #7a8aaa;
+    }
+
+    /* ── Table ───────────────────────────────────── */
+    .table-wrap {
+      flex: 1;
+      min-height: 0;
+    }
+
+    table {
+      width: 100%;
+      height: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    col.col-rank  { width: 10%; }
+    col.col-naam  { width: 36%; }
+    col.col-pct   { width: 32%; }
+    col.col-cheat { width: 22%; }
+
+    thead tr { border-bottom: 1px solid rgba(170, 196, 255, 0.2); }
+
+    th {
+      padding: 0 0.8vw;
+      height: 5vh;
+      text-align: left;
+      font-size: 1.2vh;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #6a84bb;
+    }
+
+    tbody tr {
+      border-top: 1px solid rgba(31, 46, 80, 0.5);
+      height: calc((100% - 5vh) / 5);
+    }
+
+    td {
+      padding: 0 0.8vw;
+    }
+
+    td.rank {
+      font-size: 1.8vh;
+      color: #fff;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    td.naam {
+      font-size: 2vh;
+      font-weight: 600;
+      color: #dde8ff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bar-wrap {
+      background: rgba(15, 52, 96, 0.6);
+      border-radius: 4px;
+      overflow: hidden;
+      height: 1.2vh;
+      margin-bottom: 0.4vh;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+
+    .pct-label {
+      font-size: 1.6vh;
+      color: #ccc;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+    }
+
+    .status-loading { color: #556; font-style: italic; font-size: 1.6vh; }
+    .status-error   { color: #f87171; font-size: 1.6vh; }
+
+    .cheat-badge {
+      display: inline-block;
+      padding: 0.3vh 0.7vw;
+      border-radius: 4px;
+      font-size: 1.5vh;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .cheat-low  { background: rgba(74, 222, 128, 0.18); color: #4ade80; }
+    .cheat-mid  { background: rgba(250, 204, 21,  0.18); color: #facc15; }
+    .cheat-high { background: rgba(248, 113, 113, 0.18); color: #f87171; }
+    .cheat-none { color: #7a8aaa; font-size: 1.4vh; }
+
+  </style>
+</head>
+<body>
+
+  <div id="bg"><img src="weekend_score.png" alt=""></div>
+
+  <div id="panel">
+    <div class="header">
+      <h1>🧃 Scorebord</h1>
+      <button id="refresh-btn" onclick="load()">↻</button>
+    </div>
+    <span id="last-updated"></span>
+
+    <div class="table-wrap">
+      <table>
+        <colgroup>
+          <col class="col-rank">
+          <col class="col-naam">
+          <col class="col-pct">
+          <col class="col-cheat">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Naam</th>
+            <th>Score</th>
+            <th>Cheat</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    const PAGE_SIZE = 5;
+    const INTERVAL  = 5000;
+
+    let allResults  = [];
+    let currentPage = 0;
+    let timer       = null;
+
+    function barColor(pct) {
+      if (pct >= 80) return '#4ade80';
+      if (pct >= 50) return '#facc15';
+      if (pct >= 25) return '#fb923c';
+      return '#f87171';
+    }
+
+    function cheatBadge(score) {
+      if (score == null || isNaN(score)) return `<span class="cheat-none">—</span>`;
+      const pct = Math.round(score * 100);
+      const cls = score < 0.33 ? 'cheat-low' : score < 0.66 ? 'cheat-mid' : 'cheat-high';
+      return `<span class="cheat-badge ${cls}">${pct}%</span>`;
+    }
+
+    function renderRow(rank, naam, state) {
+      const tr = document.createElement('tr');
+      if (state.status === 'loading') {
+        tr.innerHTML = `
+          <td class="rank">${rank}</td>
+          <td class="naam">${naam}</td>
+          <td class="status-loading">Laden…</td>
+          <td></td>`;
+        return tr;
+      }
+      if (state.status === 'error') {
+        tr.innerHTML = `
+          <td class="rank">${rank}</td>
+          <td class="naam">${naam}</td>
+          <td class="status-error">—</td>
+          <td></td>`;
+        return tr;
+      }
+      const { solved, total, cheatScore } = state;
+      const pct = total > 0 ? Math.round(solved / total * 100) : 0;
+      tr.innerHTML = `
+        <td class="rank">${rank}</td>
+        <td class="naam">${naam}</td>
+        <td>
+          <div class="bar-wrap">
+            <div class="bar-fill" style="width:${pct}%;background:${barColor(pct)}"></div>
+          </div>
+          <div class="pct-label">${solved} / ${total}</div>
+        </td>
+        <td>${cheatBadge(cheatScore)}</td>`;
+      return tr;
+    }
+
+    function totalPages() { return Math.ceil(allResults.length / PAGE_SIZE); }
+
+    function showPage(page) {
+      currentPage = page;
+      const tbody = document.getElementById('tbody');
+      tbody.innerHTML = '';
+      allResults
+        .slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+        .forEach(({ shop, state }, i) =>
+          tbody.appendChild(renderRow(page * PAGE_SIZE + i + 1, displayNaam(shop), state)));
+
+      restartCountdown();
+    }
+
+    function autoAdvance() {
+      if (currentPage >= totalPages() - 1) load();
+      else showPage(currentPage + 1);
+    }
+
+    function restartCountdown() {
+      clearInterval(timer);
+      timer = setInterval(autoAdvance, INTERVAL);
+    }
+
+    function buildDots() {}
+
+    function sortResults(results) {
+      return results.slice().sort((a, b) => {
+        const aErr = a.state.status === 'error';
+        const bErr = b.state.status === 'error';
+        if (aErr !== bErr) return aErr ? 1 : -1;
+        const aPct = a.state.total > 0 ? a.state.solved / a.state.total : 0;
+        const bPct = b.state.total > 0 ? b.state.solved / b.state.total : 0;
+        if (bPct !== aPct) return bPct - aPct;
+        return (b.state.solved || 0) - (a.state.solved || 0);
+      });
+    }
+
+    async function fetchCheatScore(base) {
+      try {
+        const resp = await fetch(`${base}/metrics`, { signal: AbortSignal.timeout(8000) });
+        if (!resp.ok) return null;
+        const text = await resp.text();
+        const match = text.match(/^\w+_cheat_score(?:\{[^}]*\})?\s+(\S+)/m);
+        if (!match) return null;
+        const val = parseFloat(match[1]);
+        return isNaN(val) ? 0 : val;
+      } catch {
+        return null;
+      }
+    }
+
+    async function fetchShop(url) {
+      const base = url.replace(/\/$/, '');
+      const [resp, cheatScore] = await Promise.all([
+        fetch(`${base}/api/Challenges`, { signal: AbortSignal.timeout(10000) }),
+        fetchCheatScore(base),
+      ]);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const json = await resp.json();
+      const challenges = json.data;
+      return { status: 'ok', solved: challenges.filter(c => c.solved).length, total: challenges.length, cheatScore };
+    }
+
+    function displayNaam(shop) {
+      return shop.naam || shop.url.replace('https://', '');
+    }
+
+    async function load() {
+      const btn = document.getElementById('refresh-btn');
+      clearInterval(timer);
+      btn.disabled = true;
+      allResults = [];
+      currentPage = 0;
+      const tbody = document.getElementById('tbody');
+      tbody.innerHTML = '';
+      SHOPS.slice(0, PAGE_SIZE).forEach((shop, i) =>
+        tbody.appendChild(renderRow(i + 1, displayNaam(shop), { status: 'loading' })));
+
+      const results = await Promise.all(SHOPS.map(async shop => {
+        try { return { shop, state: await fetchShop(shop.url) }; }
+        catch (e) { return { shop, state: { status: 'error', message: e.message || 'Onbereikbaar' } }; }
+      }));
+
+      allResults = sortResults(results);
+      buildDots();
+      showPage(0);
+
+      document.getElementById('last-updated').textContent =
+        `${new Date().toLocaleTimeString('nl-NL')}`;
+      btn.disabled = false;
+    }
+
+    load();
+  </script>
+</body>
+</html>

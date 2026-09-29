@@ -1,0 +1,15 @@
+services:
+  dashboard:
+    build: .
+    container_name: juice-dashboard
+    restart: unless-stopped
+    # Overschrijf config.js zonder rebuild door het als volume te mounten:
+    volumes:
+      - ./config.js:/usr/share/nginx/html/config.js:ro
+      - ./weekend_score.png:/usr/share/nginx/html/weekend_score.png:ro
+    networks:
+      - portainer_default
+
+networks:
+  portainer_default:
+    external: true
