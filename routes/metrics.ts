@@ -88,6 +88,7 @@ export function serveMetrics () {
       const ignoredUserAgents = config.get<string[]>('challenges.metricsIgnoredUserAgents')
       return !ignoredUserAgents.some((ignoredUserAgent) => userAgent.includes(ignoredUserAgent))
     })
+    res.set('Access-Control-Allow-Origin', '*')
     res.set('Content-Type', register.contentType)
     res.end(await register.metrics())
   }
