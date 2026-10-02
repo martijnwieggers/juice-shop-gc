@@ -98,10 +98,11 @@
       table-layout: fixed;
     }
 
-    col.col-rank  { width: 10%; }
-    col.col-naam  { width: 36%; }
-    col.col-pct   { width: 32%; }
-    col.col-cheat { width: 22%; }
+    col.col-rank  { width: 8%; }
+    col.col-naam  { width: 30%; }
+    col.col-pct   { width: 28%; }
+    col.col-cheat { width: 17%; }
+    col.col-eff   { width: 17%; }
 
     thead tr { border-bottom: 1px solid rgba(170, 196, 255, 0.2); }
 
@@ -177,6 +178,13 @@
     .cheat-high { background: rgba(248, 113, 113, 0.18); color: #f87171; }
     .cheat-none { color: #7a8aaa; font-size: 1.4vh; }
 
+    .eff-score {
+      font-size: 1.5vh;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .eff-none { color: #7a8aaa; font-size: 1.4vh; }
+
   </style>
 </head>
 <body>
@@ -197,6 +205,7 @@
           <col class="col-naam">
           <col class="col-pct">
           <col class="col-cheat">
+          <col class="col-eff">
         </colgroup>
         <thead>
           <tr>
@@ -204,6 +213,7 @@
             <th>Naam</th>
             <th>Score</th>
             <th>Cheat</th>
+            <th>Eff.</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -235,6 +245,19 @@
       return `<span class="cheat-badge ${cls}">${pct}%</span>`;
     }
 
+    function calcEffective(state) {
+      if (state.status !== 'ok' || state.total === 0) return null;
+      const pct = state.solved / state.total * 100;
+      const cheat = state.cheatScore != null ? state.cheatScore : 0;
+      return pct * (1 - cheat);
+    }
+
+    function effBadge(eff) {
+      if (eff == null) return `<span class="eff-none">—</span>`;
+      const color = barColor(eff);
+      return `<span class="eff-score" style="color:${color}">${Math.round(eff)}</span>`;
+    }
+
     function renderRow(rank, naam, state) {
       const tr = document.createElement('tr');
       if (state.status === 'loading') {
@@ -242,7 +265,7 @@
           <td class="rank">${rank}</td>
           <td class="naam">${naam}</td>
           <td class="status-loading">Laden…</td>
-          <td></td>`;
+          <td></td><td></td>`;
         return tr;
       }
       if (state.status === 'error') {
@@ -250,11 +273,12 @@
           <td class="rank">${rank}</td>
           <td class="naam">${naam}</td>
           <td class="status-error">—</td>
-          <td></td>`;
+          <td></td><td></td>`;
         return tr;
       }
       const { solved, total, cheatScore } = state;
       const pct = total > 0 ? Math.round(solved / total * 100) : 0;
+      const eff = calcEffective(state);
       tr.innerHTML = `
         <td class="rank">${rank}</td>
         <td class="naam">${naam}</td>
@@ -264,7 +288,8 @@
           </div>
           <div class="pct-label">${solved} / ${total}</div>
         </td>
-        <td>${cheatBadge(cheatScore)}</td>`;
+        <td>${cheatBadge(cheatScore)}</td>
+        <td>${effBadge(eff)}</td>`;
       return tr;
     }
 
@@ -278,7 +303,6 @@
         .slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
         .forEach(({ shop, state }, i) =>
           tbody.appendChild(renderRow(page * PAGE_SIZE + i + 1, displayNaam(shop), state)));
-
       restartCountdown();
     }
 
@@ -292,17 +316,14 @@
       timer = setInterval(autoAdvance, INTERVAL);
     }
 
-    function buildDots() {}
-
     function sortResults(results) {
       return results.slice().sort((a, b) => {
         const aErr = a.state.status === 'error';
         const bErr = b.state.status === 'error';
         if (aErr !== bErr) return aErr ? 1 : -1;
-        const aPct = a.state.total > 0 ? a.state.solved / a.state.total : 0;
-        const bPct = b.state.total > 0 ? b.state.solved / b.state.total : 0;
-        if (bPct !== aPct) return bPct - aPct;
-        return (b.state.solved || 0) - (a.state.solved || 0);
+        const aEff = calcEffective(a.state) ?? -1;
+        const bEff = calcEffective(b.state) ?? -1;
+        return bEff - aEff;
       });
     }
 
@@ -354,7 +375,6 @@
       }));
 
       allResults = sortResults(results);
-      buildDots();
       showPage(0);
 
       document.getElementById('last-updated').textContent =
