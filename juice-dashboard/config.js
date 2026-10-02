@@ -8,7 +8,7 @@ const SHOPS = [
   { url: 'https://js-rmn.wieggers.eu', naam: 'Robin Miljoen' },
   { url: 'https://js-dpk.wieggers.eu', naam: 'Dominik Pieczak' },
   { url: 'https://js-gbn.wieggers.eu', naam: 'Gianluca Bergen' },
-  { url: 'https://js-js-web01.wieggers.eu', naam: 'Martijn van Boven' },
+  { url: 'https://js-js-web02.wieggers.eu', naam: 'Martijn van Boven' },
   { url: 'https://js-lbk.wieggers.eu', naam: 'Lucas Bussink' },
   { url: 'https://js-jcz.wieggers.eu', naam: 'Jelle Christenhusz' },
   { url: 'https://js-mgk.wieggers.eu', naam: 'Mara Gesink' },
