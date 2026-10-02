@@ -224,8 +224,9 @@
 
   <script src="config.js"></script>
   <script>
-    const PAGE_SIZE = 5;
-    const INTERVAL  = 5000;
+    const PAGE_SIZE    = 5;
+    const INTERVAL     = 5000;
+    const TOTAL_SOLVABLE = 89; // 113 total − 16 disabledEnv:Docker − 8 API/onoplosbaar
 
     let allResults  = [];
     let currentPage = 0;
@@ -351,7 +352,7 @@
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const json = await resp.json();
       const challenges = json.data;
-      return { status: 'ok', solved: challenges.filter(c => c.solved).length, total: challenges.length, cheatScore };
+      return { status: 'ok', solved: challenges.filter(c => c.solved).length, total: TOTAL_SOLVABLE, cheatScore };
     }
 
     function displayNaam(shop) {
